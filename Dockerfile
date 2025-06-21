@@ -8,17 +8,11 @@ WORKDIR /app
 COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
 
-# Copy source files
+# Copy source code
 COPY . .
-
-# Generate Prisma client before build
-RUN npx prisma generate
-
-# Build the app
-RUN yarn build
 
 # Expose port
 EXPOSE 3000
 
-# Run migrations and start
-CMD ["sh", "-c", "npx prisma migrate deploy && yarn start"]
+# Run migrations and start (force fresh prisma client generation before build)
+CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && yarn build && yarn start"]
