@@ -27,38 +27,38 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  try {
     // Handle the event
     switch (event.type) {
       case 'checkout.session.completed':
         await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
         break;
-      
+
       case 'customer.subscription.created':
         await handleSubscriptionCreated(event.data.object as Stripe.Subscription);
         break;
-      
+
       case 'customer.subscription.updated':
         await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
         break;
-      
+
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
-      
+
       case 'invoice.payment_succeeded':
         await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice);
         break;
-      
+
       case 'invoice.payment_failed':
         await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
         break;
-      
+
       default:
         console.log(`Unhandled event type: ${event.type}`);
     }
 
     return NextResponse.json({ received: true });
-
   } catch (error) {
     console.error('Webhook handler error:', error);
     return NextResponse.json(
@@ -194,13 +194,13 @@ async function handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
   
   if (subscriptionId) {
     // Refresh user credits for the new billing cycle
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
     const userId = subscription.metadata?.userId;
-    
+
     if (userId) {
       const priceId = subscription.items.data[0]?.price.id;
       const tier = priceId ? getTierFromPriceId(priceId) : null;
-      
+
       if (tier && SUBSCRIPTION_TIERS[tier]) {
         await prisma.user.update({
           where: { id: userId },
@@ -241,9 +241,9 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   
   // Handle failed payment - could pause subscription, send notification, etc.
   if (subscriptionId) {
-    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
     const userId = subscription.metadata?.userId;
-    
+
     if (userId) {
       // Log the failed payment
       await prisma.usageHistory.create({
