@@ -13,6 +13,8 @@ COPY . .
 
 # Expose port
 EXPOSE 3000
+# test commit
 
 # Run migrations and start (force fresh prisma client generation before build)
 CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && yarn build && yarn start"]
+
