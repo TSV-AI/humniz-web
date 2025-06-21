@@ -9,10 +9,8 @@ import { SUBSCRIPTION_TIERS } from '@/lib/subscription-tiers';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-
-export async function POST(request: NextRequest) {
   try {
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
     const body = await request.text();
     const headersList = headers();
     const signature = headersList.get('stripe-signature')!;
