@@ -8,7 +8,8 @@ import { SUBSCRIPTION_TIERS } from '@/lib/subscription-tiers';
 
 export const dynamic = 'force-dynamic';
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+export async function POST(request: NextRequest) {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
 export async function POST(request: NextRequest) {
   try {
