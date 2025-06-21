@@ -2,30 +2,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { stripe, getTierFromPriceId } from '@/lib/stripe';
+import { getStripe, getTierFromPriceId } from '@/lib/stripe';
 import { prisma } from '@/lib/db';
 import { SUBSCRIPTION_TIERS } from '@/lib/subscription-tiers';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+  const body = await request.text();
+  const signature = headers().get('stripe-signature')!;
+
+  const stripe = getStripe();
+
+  let event: Stripe.Event;
+
   try {
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
-    const body = await request.text();
-    const headersList = headers();
-    const signature = headersList.get('stripe-signature')!;
-
-    let event: Stripe.Event;
-
-    try {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
-    } catch (err) {
-      console.error('Webhook signature verification failed:', err);
-      return NextResponse.json(
-        { error: 'Invalid signature' },
-        { status: 400 }
-      );
-    }
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err);
+    return NextResponse.json(
+      { error: 'Invalid signature' },
+      { status: 400 }
+    );
+  }
 
     // Handle the event
     switch (event.type) {
