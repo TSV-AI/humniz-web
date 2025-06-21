@@ -1,20 +1,23 @@
-# Use lightweight Node base image
+# ---------- base ----------
 FROM node:18-alpine
 
-# Set working directory
+# ---------- paths ----------
+#  /app         – container root
+#  /app/app     – your Next.js project (because local repo has “app/...”)
+
 WORKDIR /app
 
-# Install dependencies
-COPY package.json yarn.lock ./
+# ---------- deps ----------
+COPY package.json yarn.lock ./app/
+COPY ./app ./app/
+
+WORKDIR /app/app
 RUN yarn install --frozen-lockfile
 
-# Copy source code
-COPY . .
+# ---------- prisma ----------
+RUN npx prisma generate && npx prisma migrate deploy
 
-# Expose port
+# ---------- build / start ----------
+RUN yarn build
 EXPOSE 3000
-# test commit
-
-# Run migrations and start (force fresh prisma client generation before build)
-CMD ["sh", "-c", "npx prisma generate && npx prisma migrate deploy && yarn build && yarn start"]
-
+CMD ["yarn", "start"]
