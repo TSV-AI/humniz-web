@@ -1,23 +1,12 @@
-# ---------- base ----------
 FROM node:18-alpine
-
-# ---------- paths ----------
-#  /app         – container root
-#  /app/app     – your Next.js project (because local repo has “app/...”)
 
 WORKDIR /app
 
-# ---------- deps ----------
-COPY package.json yarn.lock ./app/
-COPY ./app ./app/
-
-WORKDIR /app/app
+COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
 
-# ---------- prisma ----------
-RUN npx prisma generate && npx prisma migrate deploy
+COPY . .
 
-# ---------- build / start ----------
-RUN yarn build
 EXPOSE 3000
-CMD ["yarn", "start"]
+
+CMD ["sh","-c","npx prisma generate --schema ./app/prisma/schema.prisma && npx prisma migrate deploy --schema ./app/prisma/schema.prisma && yarn build && yarn start"]
