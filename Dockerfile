@@ -15,6 +15,7 @@ COPY . .
 RUN npx prisma generate
 
 # Build the application
+RUN npx prisma generate
 RUN yarn build
 
 # Expose port
