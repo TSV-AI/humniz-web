@@ -1,21 +1,15 @@
 
 export interface User {
   id: string;
-  name?: string;
   email: string;
+  name?: string;
+  image?: string;
   credits: number;
   subscriptionTier: string;
+  subscriptionId?: string;
   billingCycleEnd?: Date;
-}
-
-export interface TextProcess {
-  id: string;
-  originalText: string;
-  humanizedText?: string;
-  aiDetectionScore?: number;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  creditsUsed: number;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface SubscriptionTier {
@@ -26,12 +20,32 @@ export interface SubscriptionTier {
   price: number;
   features: string[];
   isActive: boolean;
+  stripePriceId?: string | null;
+}
+
+export interface TextProcess {
+  id: string;
+  userId: string;
+  originalText: string;
+  humanizedText?: string;
+  aiDetectionScore?: number;
+  detectorResults?: Record<string, number>;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  creditsUsed: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface UsageHistory {
   id: string;
+  userId: string;
   action: string;
-  details?: any;
+  details?: Record<string, any>;
   creditsChanged?: number;
   timestamp: Date;
+}
+
+export interface PaymentSession {
+  checkoutUrl: string;
+  sessionId: string;
 }

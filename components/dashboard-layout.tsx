@@ -3,6 +3,7 @@
 
 import { Header } from '@/components/header';
 import { DashboardSidebar } from '@/components/dashboard-sidebar';
+import { Toaster } from '@/components/ui/sonner';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -20,6 +21,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
         </main>
       </div>
+      <Toaster />
     </div>
   );
 }

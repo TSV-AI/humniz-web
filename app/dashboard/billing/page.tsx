@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { SUBSCRIPTION_TIERS } from '@/lib/subscription-tiers';
+import { redirectToCheckout } from '@/lib/stripe-client';
+import { toast } from 'sonner';
 import { 
   CreditCard, 
   Check, 
@@ -50,9 +52,35 @@ export default function BillingPage() {
     }
   };
 
-  const handleUpgrade = (tierName: string) => {
-    // In a real app, this would integrate with a payment processor like Stripe
-    alert(`Upgrade to ${tierName} functionality would be implemented here with a payment processor like Stripe.`);
+  const [isUpgrading, setIsUpgrading] = useState<string | null>(null);
+
+  const handleUpgrade = async (tierName: string) => {
+    if (tierName === 'Free Trial') {
+      toast.error('Cannot downgrade to free trial from billing page');
+      return;
+    }
+
+    const tier = Object.values(SUBSCRIPTION_TIERS).find(t => t.displayName === tierName);
+    if (!tier || tier.name === 'free') {
+      toast.error('Invalid tier selected');
+      return;
+    }
+
+    setIsUpgrading(tier.name);
+
+    try {
+      await redirectToCheckout(tier.name);
+      // The redirect will happen, so this line won't execute
+    } catch (error) {
+      console.error('Payment error:', error);
+      toast.error(
+        error instanceof Error 
+          ? error.message 
+          : 'Failed to start payment process. Please try again.'
+      );
+    } finally {
+      setIsUpgrading(null);
+    }
   };
 
   if (status === 'loading' || isLoading) {
@@ -166,12 +194,22 @@ export default function BillingPage() {
                       <Button 
                         className="w-full"
                         variant={isCurrentPlan ? 'outline' : 'default'}
-                        disabled={isCurrentPlan}
+                        disabled={isCurrentPlan || isUpgrading === tier.name}
                         onClick={() => handleUpgrade(tier.displayName)}
                         size="lg"
                       >
-                        {isCurrentPlan ? 'Current Plan' : 
-                         tier.name === 'free' ? 'Downgrade' : 'Upgrade Plan'}
+                        {isUpgrading === tier.name ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Processing...
+                          </>
+                        ) : isCurrentPlan ? (
+                          'Current Plan'
+                        ) : tier.name === 'free' ? (
+                          'Downgrade'
+                        ) : (
+                          'Upgrade Plan'
+                        )}
                       </Button>
                     </div>
                   </CardContent>

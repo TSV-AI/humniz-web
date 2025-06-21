@@ -86,25 +86,29 @@ export default function SignInPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Google Sign In */}
-          <Button 
-            variant="outline" 
-            className="w-full" 
-            onClick={handleGoogleSignIn}
-            disabled={isLoading}
-          >
-            <Chrome className="mr-2 h-4 w-4" />
-            Continue with Google
-          </Button>
+          {/* Google Sign In - Only show if properly configured */}
+          {process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED !== 'false' && (
+            <>
+              <Button 
+                variant="outline" 
+                className="w-full" 
+                onClick={handleGoogleSignIn}
+                disabled={isLoading}
+              >
+                <Chrome className="mr-2 h-4 w-4" />
+                Continue with Google
+              </Button>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <Separator className="w-full" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or continue with email</span>
-            </div>
-          </div>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <Separator className="w-full" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Or continue with email</span>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Email/Password Form */}
           <form onSubmit={handleSubmit} className="space-y-4">

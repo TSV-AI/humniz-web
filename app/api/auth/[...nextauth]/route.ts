@@ -9,10 +9,16 @@ import bcrypt from 'bcryptjs';
 const handler = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
-    }),
+    // Only include Google OAuth if valid credentials are provided
+    ...(process.env.GOOGLE_CLIENT_ID && 
+        process.env.GOOGLE_CLIENT_SECRET && 
+        process.env.GOOGLE_CLIENT_ID !== 'your-google-client-id' &&
+        process.env.GOOGLE_CLIENT_SECRET !== 'your-google-client-secret'
+      ? [GoogleProvider({
+          clientId: process.env.GOOGLE_CLIENT_ID,
+          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        })]
+      : []),
     CredentialsProvider({
       name: 'credentials',
       credentials: {
