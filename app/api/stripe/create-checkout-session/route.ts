@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
-import { stripe, getStripePriceId } from '@/lib/stripe';
+import { getStripe, getStripePriceId } from '@/lib/stripe';
 import { prisma } from '@/lib/db';
 
 // Define authOptions here or import from a shared config
@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Stripe checkout session
+    const stripe = getStripe();
     const checkoutSession = await stripe.checkout.sessions.create({
       customer_email: user.email,
       payment_method_types: ['card'],
