@@ -1,0 +1,82 @@
+  ▲ Next.js 14.2.28
+  - Local:        http://localhost:3000
+  - Environments: .env
+  - Experiments (use with caution):
+    · outputFileTracingRoot
+
+ ✓ Starting...
+ ✓ Ready in 1654ms
+ ○ Compiling / ...
+ ✓ Compiled / in 2.3s (1044 modules)
+ GET / 200 in 2891ms
+ ✓ Compiled in 624ms (401 modules)
+ ✓ Compiled /api/auth/[...nextauth] in 272ms (653 modules)
+ GET /api/auth/session 200 in 712ms
+ GET / 200 in 113ms
+ GET / 200 in 45ms
+ GET / 200 in 42ms
+ GET /api/auth/session 200 in 27ms
+ ✓ Compiled /pricing in 473ms (1048 modules)
+ ○ Compiling /auth/signup ...
+ ✓ Compiled /auth/signup in 970ms (1064 modules)
+ ✓ Compiled /auth/signin in 349ms (1070 modules)
+ GET /api/auth/providers 200 in 47ms
+ GET /api/auth/csrf 200 in 17ms
+ POST /api/auth/callback/credentials 200 in 438ms
+ GET /api/auth/session 200 in 24ms
+ ○ Compiling /dashboard ...
+ ✓ Compiled /dashboard in 649ms (1100 modules)
+ GET /dashboard?_rsc=1jqx0 200 in 27ms
+ GET /api/auth/providers 200 in 37ms
+ GET /api/auth/csrf 200 in 21ms
+ POST /api/auth/callback/credentials 200 in 405ms
+ GET /api/auth/session 200 in 27ms
+ GET /dashboard?_rsc=1jqx0 200 in 22ms
+ ✓ Compiled /api/humanize in 308ms (714 modules)
+ POST /api/humanize 200 in 2388ms
+ GET /api/auth/session 200 in 31ms
+ GET /api/auth/session 200 in 29ms
+ GET /api/auth/session 200 in 26ms
+ GET /api/auth/session 200 in 26ms
+ ○ Compiling /dashboard/history ...
+ ✓ Compiled /dashboard/history in 837ms (1152 modules)
+ ✓ Compiled /api/user/history in 151ms (727 modules)
+ GET /api/user/history 200 in 277ms
+ ✓ Compiled /dashboard/analytics in 411ms (1196 modules)
+ GET /api/user/history 200 in 273ms
+ GET / 200 in 125ms
+ GET / 200 in 83ms
+ GET / 200 in 40ms
+ ✓ Compiled /api/auth/[...nextauth] in 239ms (741 modules)
+ GET /api/auth/session 200 in 313ms
+ GET / 200 in 123ms
+ GET / 200 in 86ms
+ GET / 200 in 40ms
+ GET /api/auth/session 200 in 31ms
+ GET / 200 in 40ms
+ GET / 200 in 37ms
+ GET / 200 in 39ms
+ GET /api/auth/session 200 in 26ms
+ GET /api/auth/session 200 in 26ms
+ GET /api/auth/session 200 in 26ms
+ GET /api/auth/session 200 in 25ms
+ ✓ Compiled in 833ms (473 modules)
+ ✓ Compiled in 489ms (473 modules)
+ ✓ Compiled in 672ms (473 modules)
+ ✓ Compiled in 713ms (1116 modules)
+ ✓ Compiled in 661ms (1116 modules)
+ ✓ Compiled in 586ms (1116 modules)
+ ✓ Compiled in 867ms (1116 modules)
+ ✓ Compiled in 670ms (1116 modules)
+ ✓ Compiled in 502ms (1116 modules)
+ ✓ Compiled in 365ms (473 modules)
+ ✓ Compiled in 309ms (473 modules)
+ ✓ Compiled in 301ms (473 modules)
+ ✓ Compiled in 405ms (473 modules)
+ ✓ Compiled in 457ms (473 modules)
+ ✓ Compiled in 308ms (473 modules)
+ ✓ Compiled in 325ms (473 modules)
+ ✓ Compiled in 541ms (478 modules)
+ ✓ Compiled in 630ms (1121 modules)
+ ✓ Compiled in 809ms (1127 modules)
+[?25h
