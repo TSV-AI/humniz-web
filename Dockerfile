@@ -7,6 +7,8 @@ RUN yarn install --frozen-lockfile
 
 COPY . .
 
+RUN yarn build
+
 EXPOSE 3000
 
-CMD ["sh","-c","npx prisma generate --schema ./app/prisma/schema.prisma && npx prisma migrate deploy --schema ./app/prisma/schema.prisma && yarn build && yarn start"]
+CMD ["sh", "-c", "npx prisma migrate deploy --schema ./prisma/schema.prisma && yarn start"]
