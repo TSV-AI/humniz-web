@@ -411,8 +411,8 @@ export default function DashboardPage() {
           </Card>
 
           <Card hover>
-            <CardContent className="p-6">
-              <Button variant="premium" size="lg" className="w-full h-full" asChild>
+            <CardContent className="p-8">
+              <Button variant="premium" size="lg" className="w-full h-12" asChild>
                 <a href="/dashboard/billing" className="flex items-center justify-center space-x-2">
                   <CreditCard className="h-5 w-5" />
                   <span>Add Credits</span>

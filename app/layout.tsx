@@ -14,6 +14,9 @@ export const metadata: Metadata = {
   description: 'Turn AI-generated text into reliably humanized writing—trusted by students, professionals, and creators.',
   keywords: ['AI humanizer', 'text humanization', 'AI detection', 'content creation'],
   authors: [{ name: 'humniz' }],
+  icons: {
+    icon: '/humniz.ico',
+  },
   creator: 'humniz',
   publisher: 'humniz',
   formatDetection: {
@@ -28,6 +31,7 @@ export const metadata: Metadata = {
     title: 'humniz - AI Text Humanizer',
     description: 'Turn AI-generated text into reliably humanized writing—trusted by students, professionals, and creators.',
     siteName: 'humniz',
+    images: ['/humniz_open_graph.png'],
   },
   twitter: {
     card: 'summary_large_image',
