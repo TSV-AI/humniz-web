@@ -1,4 +1,3 @@
-
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -21,6 +20,13 @@ export async function POST(request: NextRequest) {
     if (!text || text.trim().length === 0) {
       return NextResponse.json(
         { error: 'Text is required' },
+        { status: 400 }
+      );
+    }
+
+    if (text.length > 10000) {
+      return NextResponse.json(
+        { error: 'Text too long. Maximum 10,000 characters allowed.' },
         { status: 400 }
       );
     }
@@ -56,59 +62,65 @@ export async function POST(request: NextRequest) {
 
     // Multi-detector humanization process
     let humanizedText = text;
-    let detectorScores = { gptZero: 100, huggingFace: 100, gltr: 100 };
+    let detectorScores = { huggingFace: 100, heuristic: 100, perplexity: 100 };
     let attempts = 0;
     const maxAttempts = 3;
 
     while (attempts < maxAttempts) {
       attempts++;
       
-      // Humanize the text
-      humanizedText = await humanizeText(humanizedText, attempts);
-      
-      // Test with all three AI detectors
-      const [gptZeroScore, huggingFaceScore, gltrScore] = await Promise.all([
-        detectWithGPTZero(humanizedText),
-        detectWithHuggingFace(humanizedText),
-        detectWithGLTR(humanizedText)
-      ]);
+      try {
+        // Humanize the text
+        humanizedText = await humanizeText(humanizedText, attempts);
+        
+        // Test with multiple detection methods
+        const [huggingFaceScore, heuristicScore, perplexityScore] = await Promise.allSettled([
+          detectWithHuggingFace(humanizedText),
+          calculateHeuristicScore(humanizedText),
+          calculatePerplexityScore(humanizedText)
+        ]);
 
-      detectorScores = {
-        gptZero: gptZeroScore,
-        huggingFace: huggingFaceScore,
-        gltr: gltrScore
-      };
+        detectorScores = {
+          huggingFace: huggingFaceScore.status === 'fulfilled' ? huggingFaceScore.value : 50,
+          heuristic: heuristicScore.status === 'fulfilled' ? heuristicScore.value : 50,
+          perplexity: perplexityScore.status === 'fulfilled' ? perplexityScore.value : 50
+        };
 
-      // Check if average score is below 10%
-      const averageScore = (gptZeroScore + huggingFaceScore + gltrScore) / 3;
-      const averageBelowThreshold = averageScore < 10;
-      
-      if (averageBelowThreshold) {
-        break; // Success! Average detector score is below 10%
-      }
+        // Check if average score is below 15% (more realistic threshold)
+        const averageScore = (detectorScores.huggingFace + detectorScores.heuristic + detectorScores.perplexity) / 3;
+        
+        if (averageScore < 15) {
+          break; // Success!
+        }
 
-      // If not successful and we have more attempts, continue
-      if (attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Brief pause between attempts
+        // Brief pause between attempts
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      } catch (error) {
+        console.error(`Attempt ${attempts} failed:`, error);
+        if (attempts === maxAttempts) {
+          throw error;
+        }
       }
     }
 
-    // Calculate average score and check if it passes validation
-    const averageScore = (detectorScores.gptZero + detectorScores.huggingFace + detectorScores.gltr) / 3;
-    const allPassedValidation = averageScore < 10;
+    // Calculate final results
+    const averageScore = (detectorScores.huggingFace + detectorScores.heuristic + detectorScores.perplexity) / 3;
+    const allPassedValidation = averageScore < 15;
 
     // Update the text process
     const updatedProcess = await prisma.textProcess.update({
       where: { id: textProcess.id },
       data: {
         humanizedText,
-        aiDetectionScore: averageScore,
+        aiDetectionScore: Math.round(averageScore * 100) / 100,
         status: 'completed',
-        detectorResults: detectorScores, // Store individual detector results
+        detectorResults: detectorScores,
       }
     });
 
-    // Only deduct credit if validation passed (under 10% average) - this is our guarantee
+    // Only deduct credit if validation passed
     let creditsChanged = 0;
     let creditsRemaining = user.credits;
     
@@ -121,13 +133,14 @@ export async function POST(request: NextRequest) {
       creditsRemaining = user.credits - 1;
     }
 
+    // Log usage
     await prisma.usageHistory.create({
       data: {
         userId: user.id,
         action: 'humanize',
         details: { 
           textLength: text.length,
-          aiDetectionScore: averageScore,
+          aiDetectionScore: Math.round(averageScore * 100) / 100,
           detectorScores,
           attempts,
           allPassedValidation,
@@ -141,7 +154,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       id: updatedProcess.id,
       humanizedText: updatedProcess.humanizedText,
-      aiDetectionScore: averageScore,
+      aiDetectionScore: Math.round(averageScore * 100) / 100,
       detectorScores,
       allPassedValidation,
       attempts,
@@ -150,6 +163,30 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('Humanize error:', error);
+    
+    // Try to update process status to failed
+    try {
+      const failedProcesses = await prisma.textProcess.findMany({
+        where: {
+          userId: (await prisma.user.findUnique({
+            where: { email: (await getServerSession())?.user?.email || '' }
+          }))?.id,
+          status: 'processing'
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 1
+      });
+
+      if (failedProcesses.length > 0) {
+        await prisma.textProcess.update({
+          where: { id: failedProcesses[0].id },
+          data: { status: 'failed' }
+        });
+      }
+    } catch (updateError) {
+      console.error('Failed to update process status:', updateError);
+    }
+
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -158,16 +195,18 @@ export async function POST(request: NextRequest) {
 }
 
 async function humanizeText(text: string, attempt: number = 1): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
   try {
-    // Use the LLM API to humanize the text
-    const response = await fetch('https://apps.abacus.ai/v1/chat/completions', {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.ABACUSAI_API_KEY}`,
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4.1-mini',
+        model: 'gpt-4-turbo', // Using GPT-4 Turbo (most stable version)
         messages: [
           {
             role: 'system',
@@ -178,132 +217,267 @@ async function humanizeText(text: string, attempt: number = 1): Promise<string> 
             content: text
           }
         ],
-        temperature: 0.7,
-        max_tokens: 2000,
+        temperature: 0.7 + (attempt * 0.1),
+        max_tokens: Math.min(Math.ceil(text.length * 1.5), 4000),
       }),
+      signal: controller.signal,
     });
 
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
-      throw new Error('LLM API request failed');
+      const errorText = await response.text();
+      throw new Error(`OpenAI API request failed: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
     const result = data.choices[0]?.message?.content || text;
     
-    // Clean the result to ensure it's just the humanized text
-    // Remove any conversational elements or instructions
-    return result
-      .replace(/^Here's the humanized version:?\s*/i, '')
-      .replace(/^Here is the humanized text:?\s*/i, '')
-      .replace(/^Humanized text:?\s*/i, '')
-      .replace(/^The humanized version is:?\s*/i, '')
-      .replace(/^Certainly! Here's:?\s*/i, '')
-      .replace(/^Sure! Here's:?\s*/i, '')
-      .trim();
+    return cleanHumanizedText(result);
   } catch (error) {
+    clearTimeout(timeoutId);
     console.error('Error humanizing text:', error);
-    // Fallback: return original text with minor modifications
-    return text
-      .replace(/\b(However|Furthermore|Moreover|Additionally|In conclusion)\b/g, (match) => {
+    
+    return fallbackHumanization(text, attempt);
+  }
+}
+
+function cleanHumanizedText(text: string): string {
+  return text
+    .replace(/^(Here's|Here is|Certainly!?\s*Here's|Sure!?\s*Here's|The humanized version is:?)\s*/i, '')
+    .replace(/^(Humanized text:?|Rewritten text:?)\s*/i, '')
+    .replace(/^\s*["']|["']\s*$/g, '')
+    .trim();
+}
+
+function fallbackHumanization(text: string, attempt: number): string {
+  let result = text;
+  
+  const modifications = [
+    () => result
+      .replace(/\b(However|Furthermore|Moreover|Additionally)\b/g, (match) => {
         const alternatives = {
-          'However': 'But',
-          'Furthermore': 'Also',
-          'Moreover': 'Plus',
-          'Additionally': 'And',
-          'In conclusion': 'To wrap up'
+          'However': ['But', 'Though', 'Yet', 'Still'][Math.floor(Math.random() * 4)],
+          'Furthermore': ['Also', 'Plus', 'What\'s more', 'Beyond that'][Math.floor(Math.random() * 4)],
+          'Moreover': ['Plus', 'Also', 'On top of that', 'What\'s more'][Math.floor(Math.random() * 4)],
+          'Additionally': ['And', 'Also', 'Plus', 'Too'][Math.floor(Math.random() * 4)]
         };
         return alternatives[match as keyof typeof alternatives] || match;
       })
-      .replace(/\b(utilize|implement|facilitate)\b/g, (match) => {
+      .replace(/\b(utilize|implement|facilitate|demonstrate)\b/g, (match) => {
         const alternatives = {
           'utilize': 'use',
           'implement': 'put in place',
-          'facilitate': 'help'
+          'facilitate': 'help',
+          'demonstrate': 'show'
         };
         return alternatives[match as keyof typeof alternatives] || match;
-      });
+      }),
+    
+    () => result
+      .replace(/\. ([A-Z])/g, (match, letter) => 
+        Math.random() > 0.4 ? `. ${letter}` : `, and ${letter.toLowerCase()}`
+      )
+      .replace(/\bin order to\b/g, 'to')
+      .replace(/\bit is important to note that\b/gi, 'note that')
+      .replace(/\bIt should be noted that\b/gi, 'Worth noting:'),
+    
+    () => result
+      .split('. ')
+      .map((sentence, index) => {
+        if (Math.random() > 0.6 && sentence.length > 40) {
+          const parts = sentence.split(', ');
+          if (parts.length > 2) {
+            return parts.slice(1).concat(parts[0]).join(', ');
+          }
+        }
+        return sentence;
+      })
+      .join('. ')
+  ];
+
+  for (let i = 0; i < Math.min(attempt, modifications.length); i++) {
+    result = modifications[i]();
   }
+
+  return result;
 }
 
 function getHumanizationPrompt(attempt: number): string {
-  switch (attempt) {
-    case 1:
-      return 'Rewrite the following text to sound naturally human-written. Preserve the core meaning and information while making the text flow naturally. Use varied sentence structure and natural language. Output only the rewritten text without any explanations or introductions.';
+  const prompts = [
+    'Rewrite this text to sound completely natural and human-written. Vary sentence structure, use conversational language, and make it flow naturally. Keep all the key information but make it sound like a real person wrote it. Return only the rewritten text.',
     
-    case 2:
-      return 'Rewrite the following text with more aggressive humanization. Vary sentence lengths significantly, use natural word choices, add subtle personal touches, and create unpredictable text patterns while maintaining the core message. Output only the rewritten text without any explanations or introductions.';
+    'Completely rewrite this text with maximum human variation. Use different sentence lengths, add natural transitions, include some informal language, and make the writing style unpredictable while keeping the core message. Return only the rewritten text.',
     
-    case 3:
-      return 'Completely rewrite the following text to sound maximally human. Restructure sentences, use idiomatic expressions, add natural hesitations and qualifiers, vary paragraph structure, and include subtle emotional undertones. Make it naturally imperfect like human writing while preserving all key information. Output only the rewritten text without any explanations or introductions.';
-    
-    default:
-      return 'Rewrite this text to sound completely natural and human-written. Output only the rewritten text without any explanations or introductions.';
-  }
+    'Transform this text to be maximally human-like. Restructure paragraphs, use idiomatic expressions, add natural imperfections, vary rhythm and flow, and include subtle personality. Make it sound authentically human while preserving all important information. Return only the rewritten text.'
+  ];
+
+  return prompts[Math.min(attempt - 1, prompts.length - 1)];
 }
 
-// AI Detector Functions
-// Note: These are simulated functions. In production, replace with actual API calls to the respective services.
-
-async function detectWithGPTZero(text: string): Promise<number> {
-  try {
-    // Simulated GPTZero detection
-    // In production, replace with actual GPTZero API call:
-    // const response = await fetch('https://api.gptzero.me/v2/predict/text', { ... });
-    
-    // Simulate realistic detection scores (lower is better for humanized text)
-    const baseScore = Math.random() * 15; // 0-15%
-    const textComplexity = text.length / 100; // Longer text tends to be harder to humanize
-    const finalScore = Math.min(baseScore + textComplexity, 25);
-    
-    return Math.round(finalScore * 100) / 100;
-  } catch (error) {
-    console.error('GPTZero detection error:', error);
-    return 10; // Fallback score
-  }
-}
+// Enhanced Detection Methods
 
 async function detectWithHuggingFace(text: string): Promise<number> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
   try {
-    // Simulated Hugging Face AI Detector
-    // In production, replace with actual Hugging Face API call:
-    // const response = await fetch('https://api-inference.huggingface.co/models/roberta-base-openai-detector', { ... });
+    const response = await fetch('https://api-inference.huggingface.co/models/roberta-base-openai-detector', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: text,
+        options: { wait_for_model: true }
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`Hugging Face API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const fakeScore = data[0]?.find((item: any) => item.label === 'FAKE')?.score || 0;
+    return Math.round(fakeScore * 10000) / 100;
     
-    // Simulate realistic detection scores
-    const baseScore = Math.random() * 12; // 0-12%
-    const repetitionPenalty = (text.match(/\b(\w+)\s+\1\b/g) || []).length * 2; // Penalize repetition
-    const finalScore = Math.min(baseScore + repetitionPenalty, 30);
-    
-    return Math.round(finalScore * 100) / 100;
   } catch (error) {
+    clearTimeout(timeoutId);
     console.error('Hugging Face detection error:', error);
-    return 8; // Fallback score
+    return calculateHeuristicScore(text);
   }
 }
 
-async function detectWithGLTR(text: string): Promise<number> {
-  try {
-    // Simulated GLTR (Giant Language model Test Room) detection
-    // In production, replace with actual GLTR API call
-    
-    // Simulate realistic detection scores
-    const baseScore = Math.random() * 18; // 0-18%
-    const sentenceVariation = calculateSentenceVariation(text);
-    const finalScore = Math.max(baseScore - sentenceVariation, 0);
-    
-    return Math.round(finalScore * 100) / 100;
-  } catch (error) {
-    console.error('GLTR detection error:', error);
-    return 12; // Fallback score
-  }
-}
-
-function calculateSentenceVariation(text: string): number {
+async function calculateHeuristicScore(text: string): Promise<number> {
+  let score = 0;
+  
+  // Sentence analysis
   const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-  if (sentences.length < 2) return 0;
+  const sentenceLengths = sentences.map(s => s.trim().split(/\s+/).length);
+  const avgSentenceLength = sentenceLengths.reduce((a, b) => a + b, 0) / sentenceLengths.length;
   
-  const lengths = sentences.map(s => s.trim().split(/\s+/).length);
-  const avgLength = lengths.reduce((a, b) => a + b, 0) / lengths.length;
-  const variance = lengths.reduce((acc, len) => acc + Math.pow(len - avgLength, 2), 0) / lengths.length;
+  // AI tends to have consistent sentence lengths (15-25 words)
+  if (avgSentenceLength > 15 && avgSentenceLength < 25) {
+    score += 20;
+  }
   
-  return Math.min(variance / 10, 5); // Cap the variation bonus at 5%
+  // Calculate sentence length variance
+  const variance = sentenceLengths.reduce((acc, len) => acc + Math.pow(len - avgSentenceLength, 2), 0) / sentenceLengths.length;
+  if (variance < 10) { // Low variance = more AI-like
+    score += 15;
+  }
+  
+  // Vocabulary analysis
+  const words = text.toLowerCase().match(/\b\w+\b/g) || [];
+  const uniqueWords = new Set(words);
+  const lexicalDiversity = uniqueWords.size / words.length;
+  
+  if (lexicalDiversity < 0.4) { // Low diversity = more repetitive = more AI-like
+    score += 25;
+  }
+  
+  // Formal language patterns
+  const formalPatterns = [
+    /\b(furthermore|moreover|additionally|consequently|therefore|thus|hence)\b/gi,
+    /\b(it is important to note|it should be noted|it is worth mentioning)\b/gi,
+    /\b(in conclusion|to summarize|in summary)\b/gi,
+    /\b(utilize|implement|facilitate|demonstrate|establish)\b/gi
+  ];
+  
+  let formalCount = 0;
+  formalPatterns.forEach(pattern => {
+    const matches = text.match(pattern);
+    if (matches) formalCount += matches.length;
+  });
+  
+  if (formalCount > 3) {
+    score += 20;
+  }
+  
+  // Transition word overuse
+  const transitions = text.match(/\b(however|therefore|furthermore|moreover|additionally|consequently)\b/gi) || [];
+  if (transitions.length > sentences.length * 0.3) {
+    score += 15;
+  }
+  
+  // Passive voice detection
+  const passivePatterns = /\b(was|were|is|are|been)\s+\w+ed\b/gi;
+  const passiveMatches = text.match(passivePatterns) || [];
+  if (passiveMatches.length > sentences.length * 0.4) {
+    score += 10;
+  }
+  
+  return Math.min(Math.max(score, 5), 95);
+}
+
+async function calculatePerplexityScore(text: string): Promise<number> {
+  // Simplified perplexity calculation based on word frequency and patterns
+  const words = text.toLowerCase().match(/\b\w+\b/g) || [];
+  
+  // Common English word frequencies (simplified)
+  const commonWords = new Set([
+    'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'i', 'it', 'for', 
+    'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at', 'this', 'but', 'his', 
+    'by', 'from', 'they', 'we', 'say', 'her', 'she', 'or', 'an', 'will', 'my',
+    'one', 'all', 'would', 'there', 'their', 'what', 'so', 'up', 'out', 'if',
+    'about', 'who', 'get', 'which', 'go', 'me', 'when', 'make', 'can', 'like',
+    'time', 'no', 'just', 'him', 'know', 'take', 'people', 'into', 'year', 'your'
+  ]);
+  
+  let score = 0;
+  
+  // Calculate ratio of common to uncommon words
+  const commonWordCount = words.filter(word => commonWords.has(word)).length;
+  const commonWordRatio = commonWordCount / words.length;
+  
+  // AI text often has lower common word ratios (more formal vocabulary)
+  if (commonWordRatio < 0.4) {
+    score += 30;
+  }
+  
+  // Check for repetitive n-grams (2-word and 3-word phrases)
+  const bigrams = [];
+  const trigrams = [];
+  
+  for (let i = 0; i < words.length - 1; i++) {
+    bigrams.push(`${words[i]} ${words[i + 1]}`);
+  }
+  
+  for (let i = 0; i < words.length - 2; i++) {
+    trigrams.push(`${words[i]} ${words[i + 1]} ${words[i + 2]}`);
+  }
+  
+  // Count unique vs total n-grams
+  const uniqueBigrams = new Set(bigrams);
+  const uniqueTrigrams = new Set(trigrams);
+  
+  const bigramRepetition = 1 - (uniqueBigrams.size / bigrams.length);
+  const trigramRepetition = 1 - (uniqueTrigrams.size / trigrams.length);
+  
+  if (bigramRepetition > 0.3) score += 20;
+  if (trigramRepetition > 0.2) score += 25;
+  
+  // Check for predictable patterns
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  let patternScore = 0;
+  
+  sentences.forEach(sentence => {
+    const trimmed = sentence.trim();
+    // Check for formulaic sentence starters
+    if (/^(This|These|The|In|By|Through|With|For|As)\s/i.test(trimmed)) {
+      patternScore += 2;
+    }
+    // Check for formulaic endings
+    if (/\b(important|significant|crucial|essential|necessary|beneficial)\s*\.?\s*$/i.test(trimmed)) {
+      patternScore += 2;
+    }
+  });
+  
+  score += Math.min(patternScore, 20);
+  
+  return Math.min(Math.max(score, 5), 95);
 }
