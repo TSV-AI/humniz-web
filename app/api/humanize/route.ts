@@ -206,7 +206,7 @@ async function humanizeText(text: string, attempt: number = 1): Promise<string> 
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4-turbo', // Using GPT-4 Turbo (most stable version)
+        model: 'gpt-4.1', // Using GPT-4 Turbo (most stable version)
         messages: [
           {
             role: 'system',
@@ -305,12 +305,15 @@ function fallbackHumanization(text: string, attempt: number): string {
 
 function getHumanizationPrompt(attempt: number): string {
   const prompts = [
-    'Rewrite this text to sound completely natural and human-written. Vary sentence structure, use conversational language, and make it flow naturally. Keep all the key information but make it sound like a real person wrote it. Return only the rewritten text.',
-    
-    'Completely rewrite this text with maximum human variation. Use different sentence lengths, add natural transitions, include some informal language, and make the writing style unpredictable while keeping the core message. Return only the rewritten text.',
-    
-    'Transform this text to be maximally human-like. Restructure paragraphs, use idiomatic expressions, add natural imperfections, vary rhythm and flow, and include subtle personality. Make it sound authentically human while preserving all important information. Return only the rewritten text.'
-  ];
+  // Prompt 1: Maximal Human Rewrite
+  `Rewrite the following text so thoroughly that no AI detector could identify it as machine-generated. Paraphrase every sentence using unique vocabulary, restructure the entire narrative flow, and inject natural human elements—such as mixed sentence lengths, minor logical leaps, subtle off-topic remarks, and mild inconsistencies. Include context-appropriate idioms, nuanced transitions, and realistic phrasing as a skilled but imperfect human would. Disrupt any detectable patterns or formulaic structures. Prioritize originality and unpredictability at every level, while retaining all necessary information and ensuring the text remains clear and readable.`,
+
+  // Prompt 2: Extreme Paraphrasing with Human Imperfection Layer
+  `Take the provided text and fully reconstruct it in a way that not only paraphrases but fundamentally transforms its structure, pacing, and style to emulate genuine human writing. Intensify sentence variety—break up uniformity with abrupt transitions, insert brief tangents, and include mild rhetorical questions or personal asides that fit the context. Purposely introduce minor, believable errors (such as omitted words or informal punctuation), and occasionally alter the logical order as a human might in casual thought. Use diverse vocabulary, regional slang, and idiomatic expressions, while avoiding robotic precision. The result should be so naturally inconsistent and personal that it is impossible to flag as AI-generated, while still conveying all intended meaning.`,
+
+  // Prompt 3: Full Humanization—Idiosyncratic, Messy, Lifelike
+  `Transform the text into something that resembles the spontaneous, sometimes chaotic flow of an actual human. Completely overhaul sentence structures, paragraph organization, and the logical sequence. Weave in offhand comments, genuine emotion, brief digressions, and moments of uncertainty or self-correction. Mimic how real people write: let some sentences run on, others end abruptly, and let the narrative occasionally meander before returning to the main point. Introduce organic "mistakes"—such as repeated words, inconsistent tense, or casual contractions—without making the writing unreadable. Make the end result unmistakably authentic and idiosyncratic, as if written by a human with quirks and a point of view, not a polished algorithm.`
+];
 
   return prompts[Math.min(attempt - 1, prompts.length - 1)];
 }
