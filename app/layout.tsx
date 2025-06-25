@@ -6,7 +6,6 @@ import { SessionProvider } from '@/components/session-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
-import './public/*';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
